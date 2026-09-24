@@ -28,8 +28,8 @@ var runMu sync.Mutex
 
 // Run discovers a server, then runs download and upload in that order.
 // A second call while one is active reports an error and does not start
-// another test. clientName and clientVersion are sent to the locate service.
-func Run(clientName, clientVersion string, cb Callbacks) {
+// another test. The locate identity is ClientName plus clientVersion.
+func Run(clientVersion string, cb Callbacks) {
 	if cb == nil {
 		return
 	}
@@ -43,14 +43,13 @@ func Run(clientName, clientVersion string, cb Callbacks) {
 	defer cancel()
 
 	cb.OnServerDiscovery()
-	serverTime, chosen, targets, err := discover(ctx, clientName, clientVersion)
+	serverTime, targets, err := discover(ctx, clientVersion)
 	if err != nil {
 		cb.OnError("locate", err.Error())
 		return
 	}
-	cb.OnServerChosen(string(chosen))
 
-	client := ndt7.NewClient(clientName, clientVersion)
+	client := ndt7.NewClient(ClientName, clientVersion)
 	client.Scheme = "wss"
 	client.Locate = fixedLocator{targets: targets}
 
@@ -58,6 +57,12 @@ func Run(clientName, clientVersion string, cb Callbacks) {
 		cb.OnError("download", err.Error())
 		return
 	}
+	chosen, err := chosenTargetJSON(targets, client.FQDN)
+	if err != nil {
+		cb.OnError("locate", err.Error())
+		return
+	}
+	cb.OnServerChosen(chosen)
 	if err := runDirection(ctx, client.StartUpload, serverTime, cb.OnUploadProgress, cb.OnUploadComplete); err != nil {
 		cb.OnError("upload", err.Error())
 	}
