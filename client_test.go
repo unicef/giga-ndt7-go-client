@@ -30,7 +30,7 @@ func TestRunRejectsASecondCall(t *testing.T) {
 	cb := &recordingCallbacks{}
 	done := make(chan struct{})
 	go func() {
-		Run("giga-meter-android", "test", cb)
+		Run("test", cb)
 		close(done)
 	}()
 	select {

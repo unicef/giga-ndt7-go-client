@@ -36,7 +36,7 @@ func (l *liveCallbacks) OnError(direction string, message string) {
 
 func TestRunAgainstMLab(t *testing.T) {
 	cb := &liveCallbacks{t: t}
-	Run("giga-ndt7-go-client", "0.1.0", cb)
+	Run("0.1.0", cb)
 	if len(cb.errors) > 0 {
 		t.Fatalf("errors: %v", cb.errors)
 	}
