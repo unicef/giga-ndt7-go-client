@@ -24,9 +24,15 @@ type Callbacks interface {
 	OnError(direction string, message string)
 }
 
-var runMu sync.Mutex
+var (
+	runMu sync.Mutex
 
-// Run discovers a server, then runs download and upload in that order.
+	cancelMu     sync.Mutex
+	cancelActive context.CancelFunc
+)
+
+// Run discovers a server, then runs download and upload in that order. It
+// blocks until the test ends, so call it from a thread the caller can spare.
 // A second call while one is active reports an error and does not start
 // another test. The locate identity is ClientName plus clientVersion.
 func Run(clientVersion string, cb Callbacks) {
@@ -41,6 +47,8 @@ func Run(clientVersion string, cb Callbacks) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+	setActiveCancel(cancel)
+	defer setActiveCancel(nil)
 
 	cb.OnServerDiscovery()
 	serverTime, targets, err := discover(ctx, clientVersion)
@@ -53,24 +61,50 @@ func Run(clientVersion string, cb Callbacks) {
 	client.Scheme = "wss"
 	client.Locate = fixedLocator{targets: targets}
 
-	if err := runDirection(ctx, client.StartDownload, serverTime, cb.OnDownloadProgress, cb.OnDownloadComplete); err != nil {
+	// The server is known once the download connects, so report it before the
+	// first progress update rather than after the download.
+	var chosenErr error
+	onDownloadConnected := func() {
+		chosen, err := chosenTargetJSON(targets, client.FQDN)
+		if err != nil {
+			chosenErr = err
+			return
+		}
+		cb.OnServerChosen(chosen)
+	}
+	if err := runDirection(ctx, client.StartDownload, onDownloadConnected, serverTime, cb.OnDownloadProgress, cb.OnDownloadComplete); err != nil {
 		cb.OnError("download", err.Error())
 		return
 	}
-	chosen, err := chosenTargetJSON(targets, client.FQDN)
-	if err != nil {
-		cb.OnError("locate", err.Error())
+	if chosenErr != nil {
+		cb.OnError("locate", chosenErr.Error())
 		return
 	}
-	cb.OnServerChosen(chosen)
-	if err := runDirection(ctx, client.StartUpload, serverTime, cb.OnUploadProgress, cb.OnUploadComplete); err != nil {
+	if err := runDirection(ctx, client.StartUpload, nil, serverTime, cb.OnUploadProgress, cb.OnUploadComplete); err != nil {
 		cb.OnError("upload", err.Error())
 	}
+}
+
+// Cancel stops the test that Run is running, if any. Run then reports the
+// interrupted direction through OnError and returns.
+func Cancel() {
+	cancelMu.Lock()
+	defer cancelMu.Unlock()
+	if cancelActive != nil {
+		cancelActive()
+	}
+}
+
+func setActiveCancel(cancel context.CancelFunc) {
+	cancelMu.Lock()
+	cancelActive = cancel
+	cancelMu.Unlock()
 }
 
 func runDirection(
 	ctx context.Context,
 	start func(context.Context) (<-chan spec.Measurement, error),
+	onConnected func(),
 	serverTime *int64,
 	onProgress func(string),
 	onComplete func(string),
@@ -78,6 +112,9 @@ func runDirection(
 	ch, err := start(ctx)
 	if err != nil {
 		return err
+	}
+	if onConnected != nil {
+		onConnected()
 	}
 	var measurements []spec.Measurement
 	for m := range ch {
@@ -105,6 +142,8 @@ func runDirection(
 
 type noClientMeasurementError struct{}
 
-func (noClientMeasurementError) Error() string { return "ndt7 direction produced no client measurement" }
+func (noClientMeasurementError) Error() string {
+	return "ndt7 direction produced no client measurement"
+}
 
 var errNoClientMeasurement = noClientMeasurementError{}

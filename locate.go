@@ -15,7 +15,7 @@ import (
 
 const (
 	// ClientName is the identity sent to M-Lab on locate and on the test URL.
-	ClientName = "ndt7-cliente-go-giga"
+	ClientName = "ndt7-client-go-giga"
 
 	wssDownload = "wss:///ndt/v7/download"
 	wssUpload   = "wss:///ndt/v7/upload"
