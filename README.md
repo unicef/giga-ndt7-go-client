@@ -14,7 +14,7 @@ client.Locate = fixedLocator{targets: targets}
 client.StartDownload(ctx) // then client.StartUpload(ctx)
 ```
 
-`ndt7.NewClient` is M-Lab's constructor. `ClientName` is `ndt7-cliente-go-giga`.
+`ndt7.NewClient` is M-Lab's constructor. `ClientName` is `ndt7-client-go-giga`.
 `client.Locate` does not call locate again: it returns the servers `discover`
 already fetched with M-Lab's locate client. `StartDownload` and `StartUpload`
 open the WebSocket and return a stream of measurements.
