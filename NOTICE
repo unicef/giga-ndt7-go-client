@@ -1,0 +1,15 @@
+giga-ndt7-go-client
+Copyright 2026 UNICEF
+
+This project is licensed under the GNU Affero General Public License v3.0.
+See LICENSE.
+
+It does not reimplement ndt7. Download, upload, and server discovery call
+these M-Lab libraries, which remain under the Apache License 2.0
+(https://www.apache.org/licenses/LICENSE-2.0):
+
+- github.com/m-lab/ndt7-client-go
+- github.com/m-lab/locate
+
+Neither module ships a NOTICE file. Their license text is in the module
+cache at the version recorded in go.mod and go.sum.
